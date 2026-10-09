@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynamic ETA — Control Room</title>
+<style>
+  .train-results {
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    max-height: 280px;
+    overflow-y: auto;
+    display: none;
+}
+
+.train-result {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+}
+
+.train-result:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.train-result-number {
+    font-family: var(--mono);
+    font-weight: 700;
+}
+
+.train-result-name {
+    color: var(--dim);
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.selected-train {
+    margin-top: 8px;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--dim);
+}
+  :root{
+    --bg: #0b1116;
+    --panel: #121a22;
+    --panel-2: #17212b;
+    --line: #22303c;
+    --text: #dfe8ee;
+    --dim: #7f93a1;
+    --amber: #f5a524;
+    --green: #35c78a;
+    --red: #ef5a5a;
+    --blue: #4fa3e3;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 500px at 10% -10%, #12202b 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:28px;
+  }
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px; margin-bottom:22px;
+    flex-wrap:wrap; gap:12px;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--green); box-shadow:0 0 12px var(--green);}
+  .brand h1{font-size:19px; font-weight:600; letter-spacing:0.02em;}
+  .brand .sub{font-family:var(--mono); font-size:11px; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; margin-top:2px;}
+  .badge{
+    font-family:var(--mono); font-size:11px; color:var(--dim);
+    border:1px solid var(--line); padding:6px 10px; border-radius:6px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .badge b{color:var(--green);}
+
+  .layout{display:grid; grid-template-columns: 340px 1fr; gap:20px;}
+  @media (max-width: 900px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:18px;
+  }
+  .panel + .panel{margin-top:20px;}
+  .panel h2{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--dim); margin-bottom:14px; font-weight:600;
+  }
+
+  label{display:block; font-size:12px; color:var(--dim); margin-bottom:6px; margin-top:14px;}
+  label:first-child{margin-top:0;}
+  select, input{
+    width:100%; background:var(--panel-2); border:1px solid var(--line);
+    color:var(--text); padding:9px 10px; border-radius:6px;
+    font-family:var(--sans); font-size:13px;
+  }
+  select:focus, input:focus{outline:1px solid var(--blue);}
+
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+  button{
+    width:100%; margin-top:18px; padding:11px; border-radius:6px; border:none;
+    background:var(--amber); color:#1a1200; font-weight:700; font-size:13px;
+    letter-spacing:0.02em; cursor:pointer; transition:filter .15s;
+  }
+  button:hover{filter:brightness(1.08);}
+  button:disabled{opacity:0.5; cursor:default;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:4px;}
+  .stat{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:14px;
+  }
+  .stat .label{font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:0.08em;}
+  .stat .value{font-family:var(--mono); font-size:22px; margin-top:6px; font-weight:600;}
+  .stat.good .value{color:var(--green);}
+  .stat.warn .value{color:var(--amber);}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th{
+    text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--dim); padding:8px 10px; border-bottom:1px solid var(--line);
+    font-weight:600;
+  }
+  td{padding:9px 10px; border-bottom:1px solid #1a252f; font-family:var(--mono);}
+  tr:hover td{background:#141d26;}
+  .delay-bar-wrap{display:flex; align-items:center; gap:8px;}
+  .delay-bar{height:6px; border-radius:3px; background:linear-gradient(90deg, var(--green), var(--amber)); }
+  .station-name{font-family:var(--sans); color:var(--text);}
+  .station-code{color:var(--dim); font-size:11px;}
+  .delta-better{color:var(--green);}
+  .delta-worse{color:var(--red);}
+
+  .empty{color:var(--dim); font-size:13px; padding:30px 0; text-align:center;}
+  .footer-note{
+    font-family:var(--mono); font-size:11px; color:var(--dim);
+    margin-top:22px; line-height:1.6; border-top:1px solid var(--line); padding-top:14px;
+  }
+  .live-tag{
+    display:inline-flex; align-items:center; gap:5px; font-family:var(--mono);
+    font-size:10px; color:var(--green); border:1px solid #1f4030; background:#0f1f16;
+    padding:3px 8px; border-radius:20px; margin-left:8px;
+  }
+  .live-tag .pulse{width:6px;height:6px;border-radius:50%;background:var(--green); animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%{opacity:1;}50%{opacity:0.3;}100%{opacity:1;}}
+  .error{color:var(--red); font-family:var(--mono); font-size:12px; margin-top:10px;}
+
+  .support-badge{
+    display:inline-block; margin-left:8px; padding:2px 7px; border-radius:12px;
+    font-family:var(--mono); font-size:9px; vertical-align:middle;
+  }
+  .support-ai{color:var(--green); border:1px solid #1f4030; background:#0f1f16;}
+  .support-live{color:var(--amber); border:1px solid #5a4215; background:#211a0d;}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="dot"></div>
+    <div>
+      <h1>RailConnect</h1>
+      
+    </div>
+  </div>
+  <div class="badge" id="apiStatus">API <b>checking…</b></div>
+</header>
+
+<div class="layout">
+  <!-- CONTROLS -->
+  <div>
+    <div class="panel">
+      <h2>Journey Setup</h2>
+
+      <label for="trainSearch">Search Train</label>
+
+<input
+    type="text"
+    id="trainSearch"
+    placeholder="Enter train number or train name..."
+    autocomplete="off"
+/>
+
+<div id="trainResults" class="train-results"></div>
+
+<input type="hidden" id="train">
+
+<div id="selectedTrain" class="selected-train">
+    No train selected
+</div>
+
+      <label for="seq">Current Station (position along route)</label>
+      <input type="range" id="seq" min="0" max="10" value="2" />
+      <div id="seqLabel" style="font-family:var(--mono); font-size:12px; color:var(--dim); margin-top:4px;"></div>
+
+      <div class="row2">
+        <div>
+          <label for="weather">Weather</label>
+          <select id="weather">
+            <option>Clear</option>
+            <option>Rain</option>
+            <option>Fog</option>
+            <option>Storm</option>
+          </select>
+        </div>
+        <div>
+          <label for="congestion">Congestion</label>
+          <select id="congestion">
+            <option>Low</option>
+            <option>Medium</option>
+            <option>High</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div>
+          <label for="hour">Hour of day</label>
+          <input type="number" id="hour" min="0" max="23" value="8" />
+        </div>
+        <div>
+          <label for="day">Day of week (0=Mon)</label>
+          <input type="number" id="day" min="0" max="6" value="1" />
+        </div>
+      </div>
+
+      <label for="liveDelay">Live delay signal just observed (min)</label>
+      <input type="number" id="liveDelay" min="0" value="10" />
+
+      <button id="run">▶ Push Live Event → Re-forecast ETA</button>
+    </div>
+
+    <div class="panel" id="liveRailRadarPanel" style="display:none;">
+  <h2>Live RailRadar Status</h2>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="label">Current Station</div>
+      <div class="value" id="liveStation">—</div>
+    </div>
+
+    <div class="stat">
+      <div class="label">Current Delay</div>
+      <div class="value" id="liveDelayDisplay">—</div>
+    </div>
+
+    <div class="stat">
+      <div class="label">Train Status</div>
+      <div class="value" id="liveTrainStatus">—</div>
+    </div>
+
+    <div class="stat">
+      <div class="label">Distance Covered</div>
+      <div class="value" id="liveDistance">—</div>
+    </div>
+  </div>
+</div>
+    <div class="panel">
+      <h2>Model vs Static Schedule (validation)</h2>
+      <div class="stat-grid" id="modelStats">
+        <div class="empty">loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div>
+    <div class="panel">
+      <h2>Live Forecast Summary <span class="live-tag" id="liveTag" style="display:none;"><span class="pulse"></span>UPDATED</span></h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="label">Next station predicted delay</div>
+          <div class="value" id="nextDelay">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Static baseline (current practice)</div>
+          <div class="value" id="baselineDelay">—</div>
+        </div>
+        <div class="stat good">
+          <div class="label">Destination predicted delay</div>
+          <div class="value" id="destDelay">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Remaining stations forecasted</div>
+          <div class="value" id="stationCount">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Per-Station ETA Forecast (remaining route)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Station</th><th>Distance</th>
+            <th>Model Predicted Delay</th><th>Static Baseline</th><th>vs Baseline</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="6" class="empty">Set journey parameters and click "Push Live Event" to see the dynamic forecast.</td></tr>
+        </tbody>
+      </table>
+      <div class="error" id="errorBox" style="display:none;"></div>
+    </div>
+
+    <div class="footer-note">
+      Estimated time of arrival
+      
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8001";
+const trainSel = document.getElementById("train");
+const trainSearch = document.getElementById("trainSearch");
+const trainResults = document.getElementById("trainResults");
+const selectedTrain = document.getElementById("selectedTrain");
+
+let searchTimer = null;
+let selectedMlSupported = false;
+async function searchTrains() {
+
+    const query = trainSearch.value.trim();
+
+    if (query.length < 2) {
+        trainResults.innerHTML = "";
+        trainResults.style.display = "none";
+        return;
+    }
+
+    try {
+
+        const response = await fetch(
+            `${API}/trains/catalogue?search=${encodeURIComponent(query)}&limit=20`
+        );
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const trains = await response.json();
+
+        if (!trains.length) {
+
+            trainResults.innerHTML = `
+                <div class="train-result">
+                    No trains found
+                </div>
+            `;
+
+            trainResults.style.display = "block";
+            return;
+        }
+
+        trainResults.innerHTML = trains.map(train => `
+            <div
+                class="train-result"
+                data-number="${train.train_number}"
+                data-name="${train.train_name}"
+                data-ml-supported="${train.ml_supported === true}"
+            >
+                <div class="train-result-number">
+                    ${train.train_number}
+                </div>
+
+                <div class="train-result-name">
+                    ${train.train_name}
+                    <span class="support-badge ${train.ml_supported ? "support-ai" : "support-live"}">
+                      ${train.ml_supported ? "AI ETA" : "LIVE ONLY"}
+                    </span>
+                </div>
+            </div>
+        `).join("");
+
+        trainResults.style.display = "block";
+
+    } catch (error) {
+
+        console.error(error);
+
+        trainResults.innerHTML = `
+            <div class="train-result">
+                Unable to search trains
+            </div>
+        `;
+
+        trainResults.style.display = "block";
+    }
+}
+trainSearch.addEventListener("input", () => {
+
+    clearTimeout(searchTimer);
+
+    searchTimer = setTimeout(() => {
+        searchTrains();
+    }, 250);
+
+});
+trainResults.addEventListener("click", async (event) => {
+
+    const result = event.target.closest(".train-result");
+
+    if (!result || !result.dataset.number) {
+        return;
+    }
+
+    const trainNumber = result.dataset.number;
+    const trainName = result.dataset.name;
+    selectedMlSupported = result.dataset.mlSupported === "true";
+
+    trainSel.value = trainNumber;
+
+    trainSearch.value = `${trainNumber} — ${trainName}`;
+
+    selectedTrain.textContent =
+        `${trainNumber} — ${trainName}`;
+
+    trainResults.style.display = "none";
+
+    await handleSelectedTrain();
+});
+const seqInput = document.getElementById("seq");
+const seqLabel = document.getElementById("seqLabel");
+let currentRoute = [];
+
+async function checkApi(){
+  try{
+    const res = await fetch(API + "/");
+    const data = await res.json();
+    document.getElementById("apiStatus").innerHTML = 'API <b>online</b>';
+    renderModelStats(data.validation_report);
+  }catch(e){
+    document.getElementById("apiStatus").innerHTML = 'API <b style="color:#ef5a5a">offline — start uvicorn</b>';
+  }
+}
+
+function renderModelStats(report){
+  document.getElementById("modelStats").innerHTML = `
+    <div class="stat warn"><div class="label">Static baseline MAE</div><div class="value">${report.baseline_mae_min.toFixed(1)}m</div></div>
+    <div class="stat good"><div class="label">LSTM model MAE</div><div class="value">${report.model_mae_min.toFixed(1)}m</div></div>
+    <div class="stat good" style="grid-column:1/-1"><div class="label">Improvement over static schedule</div><div class="value">${report.improvement_pct.toFixed(1)}%</div></div>
+  `;
+}
+
+async function loadTrains(){
+  // The catalogue can contain thousands of trains.
+  // Do not preload/auto-select a partial first page; search on demand instead.
+  trainSel.value = "";
+  trainSearch.value = "";
+  selectedTrain.textContent = "Search and select any train";
+  selectedMlSupported = false;
+  setMlControls(false);
+}
+
+function clearForecast(message = 'Select an AI-supported train to use the LSTM ETA forecast.'){
+  document.getElementById("nextDelay").textContent = "—";
+  document.getElementById("baselineDelay").textContent = "—";
+  document.getElementById("destDelay").textContent = "—";
+  document.getElementById("stationCount").textContent = "—";
+  document.getElementById("tbody").innerHTML =
+    `<tr><td colspan="6" class="empty">${message}</td></tr>`;
+}
+
+function setMlControls(enabled){
+  seqInput.disabled = false;
+  document.getElementById("weather").disabled = false;
+  document.getElementById("congestion").disabled = false;
+  document.getElementById("hour").disabled = false;
+  document.getElementById("day").disabled = false;
+  document.getElementById("liveDelay").disabled = false;
+
+  const run = document.getElementById("run");
+
+  run.disabled = false;
+
+  run.textContent =
+    "▶ Push Live Event → Re-forecast ETA";
+}
+
+async function handleSelectedTrain(){
+
+  const errorBox =
+    document.getElementById("errorBox");
+
+  errorBox.style.display = "none";
+
+  if(!trainSel.value) return;
+
+  try{
+
+    setMlControls(true);
+
+    const data = await loadLiveStatus();
+
+    if(data && data.eta_forecast){
+
+      renderForecast(
+        data.eta_forecast
+      );
+
+    }
+
+  }catch(e){
+
+    console.error(e);
+
+    errorBox.style.display = "block";
+
+    errorBox.textContent =
+      "Error: " + e.message;
+  }
+}
+async function loadLiveStatus(){
+  const train = trainSel.value;
+
+  if(!train) return;
+
+  try{
+    const res = await fetch(`${API}/trains/${train}/live`);
+
+    if(!res.ok){
+      throw new Error(await res.text());
+    }
+
+    const data = await res.json();
+
+    const panel = document.getElementById("liveRailRadarPanel");
+
+    if(panel){
+      panel.style.display = "block";
+    }
+
+    const location = data.current_location || {};
+    const liveStatus = data.live_status || {};
+
+    document.getElementById("liveStation").textContent =
+      location.stationName || "Unknown";
+
+    document.getElementById("liveDelayDisplay").textContent =
+      location.delayMinutes != null
+        ? location.delayMinutes + " min"
+        : "—";
+
+    document.getElementById("liveTrainStatus").textContent =
+      location.status || liveStatus.status || "Unknown";
+
+    document.getElementById("liveDistance").textContent =
+  location.distanceFromOriginKm != null
+    ? Number(location.distanceFromOriginKm).toFixed(1) + " km"
+    : "—";
+
+if(data.eta_forecast){
+  renderForecast(data.eta_forecast);
+}
+
+return data;
+
+  }catch(e){
+    console.log("RailRadar live status unavailable:", e.message);
+    const panel = document.getElementById("liveRailRadarPanel");
+    if(panel) panel.style.display = "none";
+  }
+}
+async function runSimulation(){
+  const errorBox = document.getElementById("errorBox");
+  if(!selectedMlSupported){
+    errorBox.style.display = "block";
+    errorBox.textContent = "AI ETA is not available for this train. Live tracking is still available.";
+    return;
+  }
+  errorBox.style.display = "none";
+  const body = {
+    run_id: "dashboard",
+    current_seq: parseInt(seqInput.value),
+    weather: document.getElementById("weather").value,
+    congestion: document.getElementById("congestion").value,
+    hour_of_day: parseInt(document.getElementById("hour").value),
+    day_of_week: parseInt(document.getElementById("day").value),
+    live_delay_observed_min: parseFloat(document.getElementById("liveDelay").value)
+  };
+  const train = trainSel.value;
+  try{
+    const res = await fetch(`${API}/trains/${train}/simulate`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    renderForecast(data.eta_forecast);
+  }catch(e){
+    errorBox.style.display = "block";
+    errorBox.textContent = "Error: " + e.message;
+  }
+}
+
+function renderForecast(forecast){
+  const tbody = document.getElementById("tbody");
+  const maxDelay = Math.max(...forecast.map(f => f.predicted_delay_min), 1);
+
+  tbody.innerHTML = forecast.map((f, i) => {
+    const diff = f.predicted_delay_min - f.static_baseline_delay_min;
+    const diffClass = diff <= 0 ? "delta-better" : "delta-worse";
+    const diffSign = diff <= 0 ? "" : "+";
+    const barWidth = Math.max(4, (f.predicted_delay_min / maxDelay) * 100);
+    return `<tr>
+      <td>${f.seq}</td>
+      <td><div class="station-name">${f.station_name}</div><div class="station-code">${f.station_code}</div></td>
+      <td>${f.distance_km} km</td>
+      <td>
+        <div class="delay-bar-wrap">
+          <div class="delay-bar" style="width:${barWidth}px"></div>
+          <span>${f.predicted_delay_min} min</span>
+        </div>
+      </td>
+      <td style="color:var(--dim)">${f.static_baseline_delay_min} min</td>
+      <td class="${diffClass}">${diffSign}${diff.toFixed(1)} min</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("nextDelay").textContent = forecast[0].predicted_delay_min + " min";
+  document.getElementById("baselineDelay").textContent = forecast[0].static_baseline_delay_min + " min";
+  document.getElementById("destDelay").textContent = forecast[forecast.length-1].predicted_delay_min + " min";
+  document.getElementById("stationCount").textContent = forecast.length;
+
+  const tag = document.getElementById("liveTag");
+  tag.style.display = "inline-flex";
+  setTimeout(() => tag.style.display = "none", 2000);
+}
+
+trainSel.addEventListener("change", async () => {
+  await handleSelectedTrain();
+});
+
+seqInput.addEventListener("input", updateSeqLabel);
+
+document.getElementById("run").addEventListener("click", runSimulation);
+
+checkApi();
+loadTrains();
+//loadTrains();
+</script>
+
+</body>
+</html>
+ 
